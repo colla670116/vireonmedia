@@ -44,18 +44,20 @@ function renderPlatform(id) {
     const active = tab.dataset.platform === id;
     tab.classList.toggle("is-active", active);
     tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
+    tab.id = `tab-${tab.dataset.platform}`;
+    tab.setAttribute("aria-controls", "platform-panel");
   });
 
   const panel = document.getElementById("platform-panel");
-  panel.classList.remove("panel-enter");
-  void panel.offsetWidth;
+
   panel.querySelector(".platform-detail-icon img").src = platform.icon;
   panel.querySelector(".platform-detail-icon img").alt = `${platform.name} icon`;
   panel.querySelector("[data-platform-eyebrow]").textContent = platform.eyebrow;
   panel.querySelector("[data-platform-headline]").textContent = platform.headline;
   panel.querySelector("[data-platform-copy]").textContent = platform.copy;
   panel.querySelector("[data-platform-points]").innerHTML = platform.points
-    .map((point) => `<div><span aria-hidden="true">✓</span><span>${point}</span></div>`)
+    .map((point) => `<div><span class="point-mark" aria-hidden="true"></span><span>${point}</span></div>`)
     .join("");
 
   const networks = panel.querySelector("[data-native-networks]");
@@ -63,33 +65,24 @@ function renderPlatform(id) {
   networks.querySelector("div").innerHTML = (platform.networks || [])
     .map((network, index) => `<span class="network-chip"><b>${String(index + 1).padStart(2, "0")}</b>${network}</span>`)
     .join("");
-  panel.classList.add("panel-enter");
+  panel.setAttribute("aria-labelledby", `tab-${id}`);
+  window.vireonMotion?.animatePanel(panel);
 }
 
 document.querySelectorAll(".platform-tab").forEach((tab) => {
   tab.addEventListener("click", () => renderPlatform(tab.dataset.platform));
   tab.addEventListener("keydown", (event) => {
-    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
     const tabs = [...document.querySelectorAll(".platform-tab")];
     const current = tabs.indexOf(tab);
-    const next = event.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
+    const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : event.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
     tabs[next].focus();
     renderPlatform(tabs[next].dataset.platform);
   });
 });
 
-const observer = new IntersectionObserver(
-  (entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add("is-visible");
-        observer.unobserve(entry.target);
-      }
-    });
-  },
-  { threshold: 0.14, rootMargin: "0px 0px -60px" },
-);
-document.querySelectorAll("[data-reveal]").forEach((node) => observer.observe(node));
+
 
 const form = document.getElementById("contact-form");
 const submit = document.getElementById("contact-submit");
@@ -99,10 +92,12 @@ const status = document.getElementById("contact-status");
 const emailReady = /^\S+@\S+\.\S+$/.test(CONTACT_EMAIL);
 
 if (emailReady) {
-  channel.textContent = CONTACT_EMAIL;
-  helper.textContent = "Submitting opens a prepared email in your default mail app.";
+  const emailLink = channel.querySelector("a");
+  emailLink.textContent = CONTACT_EMAIL;
+  emailLink.href = `mailto:${CONTACT_EMAIL}`;
+  helper.textContent = "Opens a draft in your email app. Review it, then send. You can also email us directly.";
   submit.disabled = false;
-  submit.innerHTML = "Prepare inquiry <span aria-hidden=\"true\">↗</span>";
+  submit.textContent = "Prepare email";
 }
 
 form.addEventListener("submit", (event) => {
@@ -112,6 +107,7 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
+  if (!form.reportValidity()) return;
   const data = new FormData(form);
   const subject = encodeURIComponent(`Media buying inquiry — ${data.get("company") || data.get("name")}`);
   const body = encodeURIComponent([
@@ -123,8 +119,19 @@ form.addEventListener("submit", (event) => {
     "",
     data.get("message"),
   ].join("\n"));
-  status.textContent = "Opening your email app…";
+  status.textContent = "Your email draft is ready to open. Send it from your mail app. If nothing opens, use the email address on this page.";
   window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
 });
 
 renderPlatform("meta");
+
+const menu = document.querySelector('.menu-toggle');
+const nav = document.querySelector('.main-nav');
+function closeMenu() { menu.setAttribute('aria-expanded', 'false'); nav.classList.remove('is-open'); }
+menu.addEventListener('click', () => {
+  const open = menu.getAttribute('aria-expanded') !== 'true';
+  menu.setAttribute('aria-expanded', String(open)); nav.classList.toggle('is-open', open);
+});
+nav.addEventListener('click', (event) => { if (event.target.closest('a')) closeMenu(); });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && menu.getAttribute('aria-expanded') === 'true') { closeMenu(); menu.focus(); } });
+document.addEventListener('click', (event) => { if (!event.target.closest('.site-header')) closeMenu(); });
